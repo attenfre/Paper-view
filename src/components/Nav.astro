@@ -1,0 +1,119 @@
+---
+interface Props {
+  brand: {
+    initials: string;
+    name: string;
+  };
+  links: {
+    href: string;
+    label: string;
+  }[];
+}
+
+const { brand, links } = Astro.props;
+---
+
+<nav class="site-nav">
+  <div class="wrap nav-inner">
+    <a href="/" class="nav-back" title="Return to Library">
+      <i class="ph ph-arrow-left"></i> Library
+    </a>
+    <a href="#" class="nav-brand">
+      <span class="nav-mark">{brand.initials}</span>
+      {brand.name}
+    </a>
+    <div class="nav-links">
+      {
+        links.map((item) => (
+          <a class="nav-link" href={item.href}>
+            {item.label}
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</nav>
+
+<style>
+  /* Nav Styles */
+  .site-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    gap: 16px;
+  }
+  .nav-back {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--muted);
+    background: #f1f5f9;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+  }
+  .nav-back:hover {
+    background: #e2e8f0;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+    flex-grow: 1;
+    justify-content: center;
+  }
+  .nav-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--accent);
+    display: grid;
+    place-items: center;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .nav-links {
+    display: flex;
+    gap: 8px;
+  }
+  .nav-link {
+    padding: 8px 16px;
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .nav-link:hover {
+    color: var(--text);
+    background: rgba(15, 118, 110, 0.08);
+    text-decoration: none;
+  }
+  @media (max-width: 900px) {
+    .nav-links {
+      display: none;
+    }
+  }
+</style>

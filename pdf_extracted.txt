@@ -1,0 +1,2132 @@
+Heatmap-Seeded Spatially Grounded Query Transformers
+Improve Astrocyte Soma Detection across Immunostains and
+Scan Resolutions
+Jiayang Zhu1,2 and Xizhe Zhang1,2*
+1Early Intervention Unit, Department of Psychiatry, Affiliated Nanjing Brain Hospital,
+Nanjing Medical University, Nanjing, China.
+2School of Biomedical Engineering and Informatics, Nanjing Medical University, Nanjing,
+Jiangsu, China.
+*Corresponding author(s). E-mail(s): zhangxizhe@njmu.edu.cn;
+Contributing authors: jiayangzhu@stu.njmu.edu.cn;
+Abstract
+Background: Automated astrocyte quantification in human immunohistochemistry (IHC) is hin-
+dered by stain variability and dense clustering. Standard Transformers often miss faint somata due
+to agnostic initialization, while CNNs struggle with overlapping instances.
+Methods: We propose a Heatmap-Seeded Query Transformer coupling candidate sufficiency with
+global competitive assignment. Queries initialized from CNN-derived spatial peaks capture faint tar-
+gets and are refined via a cross-scale Transformer decoder. We evaluated the model on ALDH1L1- and
+GFAP-stained human tissue (0.35–0.50 µm/px) against Faster R-CNN, YOLOv11, and Deformable
+DETR using COCO-style metric under the Olar et al. evaluation protocol, bootstrap-resampled FROC
+analysis, and targeted stratifications for local contrast and pair-separation recall.
+Results: Our method improved overall Average Precision (AP) across the vast majority of test
+cohorts, including a nearly 19% relative increase in high-resolution ALDH1L1 images. Crucially,
+stratified evaluations revealed significant improvements in localizing low-contrast targets and resolving
+densely crowded cell pairs without relying on heuristic filtering. FROC analysis confirmed superior
+sensitivity at clinically relevant low false-positive rates.
+Conclusions: Integrating spatial priors with global reasoning effectively mitigates the sensitivity-
+precision trade-off. This yields a robust detector for astrocyte soma localization resilient to stain and
+resolution shifts, serving as a highly reliable upstream component for quantitative digital pathology
+workflows.
+Keywords: Astrocyte detection;CNN–Transformer;Object detection;ALDH1L1;GFAP
+Background
+Astrocytes constitute a fundamental class of glial
+cells within the central nervous system, charac-
+terized by their complex stellate morphology and
+essential roles in supporting neuronal function,
+regulating cerebral blood flow, and modulating
+synaptic activity [1, 2]. In response to a wide spec-
+trum of neurological insults, ranging from acute
+1
+trauma and ischemia to chronic neurodegenera-
+tive conditions like Alzheimer’s disease, astrocytes
+undergo a process known as reactive gliosis [3–5].
+This state is marked by cellular hypertrophy, the
+upregulation of intermediate filaments, and alter-
+ations in astrocytic density and spatial distribu-
+tion. While evaluating fine morphological changes
+requires precise cell segmentation, accurate local-
+ization and robust enumeration of astrocytes serve
+as the fundamental first step for evaluating reac-
+tive gliosis. Quantifying these population-level
+dynamics, such as absolute cell counts and spa-
+tial clustering patterns, provides critical insight
+into disease progression and the evaluation of
+therapeutic efficacy. While genetically encoded
+fluorescent reporters in transgenic mice offer pris-
+tine visualization for mechanistic studies, clinical
+neuropathology and archival research rely heavily
+on immunohistochemistry (IHC) of human brain
+tissue [6]. Unlike controlled animal models, human
+IHC da ta inherently suffers from significant chal-
+lenges, including variable staining intensity, non-
+specific background noise from DAB chromogens,
+and a lack of channel separation. These factors
+make robust automated quantification a persistent
+bottleneck in translational research.
+Reliable identification of astrocytes in bright-
+field microscopy is further confounded by two
+primary methodological barriers: stain-dependent
+appearance shifts and dense cellular clustering.
+Traditional object detectors based on Convolu-
+tional Neural Networks, such as Faster R-CNN
+and YOLO, have revolutionized biomedical image
+analysis but face inherent limitations in this con-
+text [7–11]. These models typically rely on local
+receptive fields and heuristic non-maximum sup-
+pression (NMS) to filter predictions. In dense
+astrocytic networks where processes from neigh-
+boring cells intertwine, heuristic NMS often erro-
+neously suppresses true positives or fails to sep-
+arate overlapping somata. Consequently, CNN-
+based approaches frequently struggle to balance
+sensitivity and precision when handling the intri-
+cate morphologies of glia.
+More recently, the advent of Detection Trans-
+formers (DETR) has introduced a paradigm shift
+by leveraging global attention mechanisms for one-
+to-one set matching [12, 13]. Unlike CNN-based
+detectors that generate thousands of redundant
+anchors requiring aggressive filtering, Transformer
+architectures explicitly learn to suppress dupli-
+cate predictions during training. However, stan-
+dard Transformer architectures typically rely on
+content-agnostic learned queries to initialize the
+detection process. In the specific context of astro-
+cyte detection, where targets can be extremely
+small or faintly stained, these blind queries often
+fail to locate valid objects during the initial train-
+ing phases. This limitation, often referred to as the
+candidate sufficiency problem, leads to slow con-
+vergence and suboptimal recall for subtle morpho-
+logical features [14–18]. Therefore, a significant
+theoretical gap remains regarding how to simul-
+taneously guarantee high recall for faint targets
+while maintaining the global discriminative power
+needed to resolve crowded instances.
+Recent advancements in deep learning for med-
+ical image analysis have explored various strate-
+gies to enhance feature representation and small
+object detection, including modern Transformer
+and hybrid backbones [19–21] and self-supervised
+pretraining paradigms [22–24]. In computational
+pathology, stain variability and batch effects
+remain major obstacles to model generalization,
+motivating stain augmentation and domain gen-
+eralization strategies [25–28]. For astrocyte quan-
+tification, prior pipelines have leveraged deep
+learning for detection/segmentation in fluorescent
+micrographs [29] and for GFAP-immunolabeled
+astrocyte detection in brightfield images [30, 31].
+Drawing inspiration from these developments,
+we hypothesize that the limitations of current
+astrocyte detectors can be effectively addressed
+by explicitly coupling spatial priors with global
+reasoning. Specifically, by seeding Transformer
+queries with high-confidence peaks derived from
+a computationally efficient CNN heatmap (as
+in heatmap-based detection and adaptive sam-
+ple selection [32, 33]), we can ensure that even
+faint somata are attended to, thereby solving the
+issue of candidate sufficiency. Meanwhile, the sub-
+sequent Transformer decoder can perform com-
+petitive assignment to distinguish true cells from
+background artifacts, effectively resolving issues
+related to cellular crowding.
+In
+this
+paper,
+we
+propose
+and
+validate
+a Heatmap-Seeded Spatially Grounded Query
+Transformer designed for robust astrocyte soma
+detection. Unlike Deformable DETR variants that
+learn query positions from scratch, our method
+utilizes a heatmap-guided mechanism to generate
+2
+data-dependent anchors. These anchors serve as
+explicit spatial priors for the transformer decoder,
+allowing the model to focus on refining localization
+rather than discovering objects from scratch. This
+architecture effectively bridges the gap between
+the high recall of heatmap-based methods and the
+precision of transformer-based global assignment.
+We posit that this mechanism effectively mitigates
+the sensitivity-precision trade-off exacerbated by
+domain shifts in human tissue. To validate this
+central claim, we evaluate the model on a diverse
+dataset of ALDH1L1 and GFAP stained human
+brain tissue [34] across varying resolutions of 0.50
+and 0.35 µm/px. The results demonstrate that
+our heatmap-seeded mechanism consistently out-
+performs established baselines, including Faster
+R-CNN and Deformable DETR, yielding the most
+significant gains in high-resolution cohorts where
+candidate sufficiency is most critical. By providing
+robust cell counting resilient to stain and resolu-
+tion variability, this work holds great promise for
+alleviating a key bottleneck in automated human
+neuropathology.
+Methods
+Theoretical Framework and
+Motivation
+Automated
+astrocyte
+detection
+in
+brightfield
+immunohistochemistry faces critical hurdles, pri-
+marily the candidate sufficiency problem where
+Deformable DETR-based methods with learned
+queries fail to detect faint somata due to a lack
+of spatial priors [12, 14–17]. Furthermore, the
+crowding problem poses a significant challenge as
+CNN-based detectors struggle to separate entan-
+gled processes of adjacent cells, while domain
+shifts caused by stain variability further com-
+plicate robust quantification. To address these
+challenges, we propose a hybrid architecture that
+couples a CNN feature pyramid for local tex-
+ture extraction with a Transformer decoder for
+global competitive assignment. Crucially, rather
+than relying on content-agnostic learned queries,
+our method grounds the Transformer by seeding
+it with high-confidence spatial peaks derived from
+a center heatmap. This design ensures that com-
+putation focuses on plausible somata, especially
+faint ones, while the subsequent cross-attention
+mechanism resolves scale uncertainty and dense
+clustering.
+Overall Architecture
+As illustrated in Figure 1, the proposed detector
+processes input images resized to 512 × 512 pix-
+els and consists of three integrated components.
+First, a ResNet-50 backbone extracts hierarchi-
+cal features, into which a lightweight Transformer
+block is inserted at the C4 stage to enhance long-
+range dependency modeling. These features are
+subsequently fused via a Feature Pyramid Net-
+work to produce multi-scale maps P2, P3, and
+P4 with strides of 4, 8, and 16, respectively. Sec-
+ond, a projection head on the high-resolution
+P2 map predicts a dense center heatmap, from
+which local maxima are extracted to serve as
+spatially grounded anchors. Third, a dynamic
+query decoder samples feature vectors from P2 at
+these anchor locations to initialize queries. These
+queries are then refined through L layers of self-
+attention and cross-attention over a multi-scale
+memory constructed from the feature pyramid,
+enabling the model to effectively handle scale
+variations.
+Candidate Sufficiency via
+Heatmap-Seeded Queries
+To
+resolve
+the
+initialization
+issue
+of
+stan-
+dard Transformers, we employ a heatmap-guided
+strategy. The network predicts a single-channel
+heatmap H ∈[0, 1]
+H
+4 × W
+4 where peaks correspond
+to astrocyte centers. For each ground-truth soma j
+at (µx
+j , µy
+j), the target is modeled as a 2D Gaussian
+kernel:
+H⋆(x, y) = max
+j
+exp
+
+−
+(x −µx
+j )2 + (y −µy
+j)2
+2σ2
+j
+
+where σj is an object-size-adaptive radius. Specif-
+ically, the radius is determined by solving a series
+of quadratic equations that model three geomet-
+ric scenarios: the predicted box enclosing the
+ground truth, the ground truth enclosing the pre-
+dicted box, or both boxes overlapping at the
+corners. By selecting the minimum radius among
+these scenarios, we guarantee that any point
+within the Gaussian peak H⋆maintains a min-
+imum Intersection-over-Union (IoU) overlap (set
+3
+Fig. 1: Architecture of the Heatmap-Seeded Query Transformer.
+to 0.7 in our experiments) with the actual ground-
+truth box. Additionally, we enforce a floor value
+(min radius = 2 pixels in the feature map) to
+ensure that even the smallest astrocytic somata
+generate a sufficient spatial signal for query initial-
+ization. This dense supervision forces the model
+to learn local structural features of astrocytes.
+Instead of using fixed embeddings, we select the
+top-K local maxima from the predicted heatmap
+H after applying a 3 × 3 max-pooling operation.
+By default, K is set to 80. This capacity was
+empirically chosen because the absolute number
+of astrocytes within a 512×512 IHC image patch
+rarely exceeds this threshold (the dataset average
+is approximately 11.9 somata per patch). Thus,
+K = 80 guarantees candidate sufficiency even
+for extremely crowded regions without imposing
+excessive computational overhead on the subse-
+quent Transformer decoder. Let S = {(ui, vi)}K
+i=1
+be the coordinates of these peaks. The initial
+query q(0)
+i
+for the i-th candidate is generated by:
+q(0)
+i
+= ϕ
+ [f(ui, vi), ˜ui, ˜vi, PE(ui, vi)]
+
+∈Rd
+where f(ui, vi) is the feature vector bilinearly
+sampled from P2 at peak locations, (˜ui, ˜vi) are
+normalized coordinates, PE represents sinusoidal
+positional encodings, and ϕ is a linear projection
+layer. This mechanism explicitly encodes the spa-
+tial confidence of potential targets into the Trans-
+former. The complete step-by-step procedure for
+generating these spatial priors and initializing the
+queries is summarized in Algorithm 1.
+Cross-Scale Global Competitive
+Assignment
+To handle astrocytes of varying sizes and over-
+lapping processes, we construct a unified memory
+M by flattening and concatenating the multi-scale
+features {P2, P3, P4} after channel alignment. A
+LiteDecoder with L = 6 layers iteratively updates
+the queries:
+Q(ℓ+1) = FFN
+
+CrossAttn
+ SelfAttn(Q(ℓ)), M
+
+The Self-Attention layer models relationships
+between queries to resolve duplicates, while Cross-
+Attention aggregates context from the multi-scale
+memory. Finally, two prediction heads output the
+class probability pi and anchor-relative box offsets
+4
+Algorithm 1 Heatmap target generation and
+query seeding
+Require: RGB patch I, ground-truth boxes B =
+{bj}N
+j=1, heatmap head fhm, top-K query
+budget.
+Ensure: Heatmap target H⋆and seeded query
+set Q(0).
+1: Initialize H⋆←0.
+2: for each ground-truth box bj with center cj
+and size (wj, hj) do
+3:
+Compute an adaptive Gaussian radius
+σj = g(wj, hj) maintaining minimum IoU.
+4:
+Rasterize a 2D Gaussian centered at cj
+onto H⋆using σj.
+5: end for
+6: Predict a center heatmap H = fhm(I).
+7: Extract local maxima from H and keep the
+top-K peaks {(ui, vi)}K
+i=1.
+8: for i = 1 to K do
+9:
+Build a spatial query embedding from peak
+location (ui, vi).
+10:
+Attach the corresponding multi-scale posi-
+tional encoding.
+11: end for
+12: return H⋆and Q(0).
+(∆xi, ∆yi, ∆log wi, ∆log hi). The detailed itera-
+tive refinement mapping and the final inference
+logic are outlined in Algorithm 2.
+Algorithm 2 Decoder refinement and inference
+Require: Seeded queries Q(0), multi-scale mem-
+ory M, decoder depth L, score threshold
+δ.
+Ensure: Final detection set ˆY.
+1: for ℓ= 0 to L −1 do
+2:
+Update
+Q(ℓ+1)
+←
+FFN(CrossAttn(SelfAttn(Q(ℓ)), M)).
+3: end for
+4: Predict class scores and anchor-relative box
+offsets from Q(L).
+5: Decode boxes and retain candidates with con-
+fidence ≥δ.
+6: Apply Hungarian matching during training for
+one-to-one supervision.
+7: return the refined detection set ˆY.
+Optimization and Inference
+We adopt a set-based training strategy using
+bipartite Hungarian matching to assign predic-
+tions to ground truths. The total loss L constitutes
+a weighted sum of heatmap reconstruction and
+detection losses:
+L = whmLFocal(H, H⋆)+λclsLcls+λL1LL1+λiouLCIoU
+where Lcls is the focal classification loss, LL1 is
+the L1 regression loss, and LCIoU is the Complete
+IoU loss [35]. The loss coefficients are empirically
+balanced (whm = 2.0, λcls = 1.0, λL1 = 6.0, and
+λiou = 2.0) to stabilize the learning dynamics.
+This composite loss forces the model to pre-
+dict exactly one bounding box per cell, effec-
+tively teaching the Transformer decoder to sup-
+press duplicates via global query competition.
+During inference, bounding box coordinates are
+decoded from the relative offsets. Crucially, the
+Transformer successfully learns this global reason-
+ing and one-to-one assignment, making standard
+heuristic Non-Maximum Suppression theoretically
+unnecessary. Detailed in Supplementary Table S1,
+our ablation studies empirically confirm this archi-
+tectural independence. The raw network operating
+without any post-processing NMS handles dense
+crowding efficiently and natively achieves highly
+competitive performance. For example, on the
+GFAP 05019 Cohort 2, the raw network yields an
+impressive AP of 0.820.
+Since our queries are dynamically seeded from
+a continuous heatmap, highly irregular or hyper-
+trophic somata can occasionally induce the CNN
+backbone to generate split peaks, where a sin-
+gle cell produces two highly adjacent candidate
+seeds. To address these rare structural ambigui-
+ties without aggressively deleting faint targets in
+crowded regions, we apply a lightweight Soft-NMS
+step configured with an IoU threshold of 0.5 and
+a smoothing parameter σ of 0.5. We explicitly
+emphasize that our model does not rely on this
+algorithm to resolve crowding. As demonstrated in
+the supplementary ablation, this residual cleanup
+removes virtually zero initial predictions and pro-
+vides only a marginal numerical gain, such as
+shifting the AP from 0.820 to 0.821.
+5
+Data Preprocessing and
+Augmentation
+The model was evaluated on the dataset pro-
+vided by Olar et al. [34]. To strictly adhere
+to the backbone stride requirements, all input
+image patches were resized from their original
+dimensions to a fixed resolution of 512 × 512 pix-
+els. To improve robustness against the variability
+of IHC staining, such as illumination and con-
+trast differences, we applied a comprehensive data
+augmentation pipeline using the Albumentations
+library. This pipeline included geometric transfor-
+mations like random horizontal or vertical flips
+and affine transformations. Furthermore, we incor-
+porated pixel-level augmentations including ran-
+dom brightness and contrast adjustment, CLAHE,
+random gamma correction, and Gaussian blur.
+These augmentations simulate the domain shifts
+encountered in clinical microscopy, enhancing the
+model’s generalization capabilities.
+Implementation Details
+Two
+separate
+models
+were
+trained:
+one
+for
+ALDH1L1-stained images and one for GFAP-
+stained images, allowing the networks to spe-
+cialize in the distinct morphological features of
+each marker. The framework was implemented in
+PyTorch. Optimization was performed using the
+AdamW optimizer with an initial learning rate
+of 2 × 10−4 and weight decay of 4 × 10−4. We
+employed a batch size of 4 and trained for 50
+epochs on a single NVIDIA A100 GPU. A learning
+rate warm-up was applied for the first 15 epochs.
+Training times were approximately 2 hours for
+the ALDH1L1 model and 3 hours for the GFAP
+model.
+To evaluate the computational feasibility of
+our approach, we also measured inference effi-
+ciency, including throughput and peak GPU mem-
+ory consumption. Operating on 512 × 512 res-
+olution patches with a batch size of 4, our
+model achieved a throughput of approximately
+26.5 frames per second (FPS) with a peak mem-
+ory footprint of 1.36 GB. While fully convolu-
+tional architectures like YOLOv11 and Faster
+R-CNN are inherently faster, our hybrid architec-
+ture proved to be both faster and more memory-
+efficient than the Deformable DETR baseline
+(20.9 FPS, 1.47 GB). Given the offline nature
+of whole-slide histological analysis, this compu-
+tational profile is highly acceptable, particularly
+when weighed against the substantial improve-
+ments achieved in faint target localization and
+crowded soma separation. The detailed compu-
+tational efficiency comparison across all baseline
+models is provided in the Supplementary Material
+(Table S2).
+Evaluation Metrics and Baselines
+We report COCO-style AP/AR under the Olar et
+al. evaluation protocol, primarily Average Preci-
+sion (AP) and Average Recall (AR) averaged over
+IoU thresholds from 0.05 to 0.50. These metrics
+rely on standard IoU-based bounding box match-
+ing to facilitate direct comparison with the pri-
+mary baseline. Complementary to this, we utilize
+Free-Response ROC (FROC) analysis to evalu-
+ate the sensitivity versus false positives per image
+(FPPI) trade-off. In accordance with the origi-
+nal evaluation protocol for this dataset, FROC
+matching relies on a center-in-box criterion: a
+true positive (TP) is recorded if the center of a
+predicted bounding box falls strictly within the
+boundaries of a ground-truth box. FROC curves
+were generated via bootstrap resampling with B =
+200 to provide 95% confidence intervals.
+To test the specific claims that the pro-
+posed detector benefits weakly stained somata
+and crowded local neighborhoods, we define two
+instance-level attributes on the test set. For each
+annotated astrocyte j, local contrast is computed
+on the DAB channel (extracted via standard
+RGB-to-HED color deconvolution) as
+Cj =
+µcell
+j
+−µring
+j
+σring
+j
++ ε
+,
+where µcell
+j
+is the mean DAB signal inside the
+ground-truth box and µring
+j
+, σring
+j
+are computed
+from an expanded surrounding ring (created by
+a 10-pixel dilation of the bounding box) after
+excluding the box interior. The numerical stabi-
+lizer ε is set to 10−5. Lower Cj indicates weaker
+local contrast. We also define local density as
+Dj =
+X
+k̸=j
+1 (∥cj −ck∥2 ≤r) ,
+6
+where cj denotes the center of box j and r is a
+fixed neighborhood radius, empirically set to 40
+pixels. Test instances are partitioned into tertiles
+according to the continuous contrast score Cj.
+Conversely, because the local density Dj typically
+follows a discrete and zero-inflated distribution,
+we categorize instances based on absolute neigh-
+bor counts: sparse (Dj = 0), intermediate (Dj =
+1), and dense (Dj ≥2). Evaluation metrics (AP
+and AR) are reported separately for each stratum.
+To directly quantify the capability of sepa-
+rating overlapping instances in crowded regions,
+we further introduce the Pair-Separation Recall
+(PSR). A ground-truth pair is defined as highly
+crowded if the Euclidean distance between their
+centers is below a stringent threshold (∥cj−ck∥2 ≤
+τ, with τ set to 30 pixels). PSR calculates the
+proportion of such pairs where both instances
+are independently and successfully recalled by
+two distinct predicted bounding boxes, enforcing
+a strict one-to-one matching without duplicate
+assignments.
+To
+demonstrate
+the
+effectiveness
+of
+our
+method,
+we
+benchmarked
+it
+against
+modern
+generic object detectors, including YOLOv11 and
+a Deformable DETR model [13, 36]. Furthermore,
+we explicitly compare against the Faster R-CNN
+baseline. It is important to note that the Faster
+R-CNN results reported in the subsequent strati-
+fied analyses and tables are derived from our own
+rigorous retraining on the exact same train and
+test splits using the hyperparameters specified by
+Olar et al. rather than relying on their published
+aggregate metrics. This ensures a strictly fair
+quantitative comparison between our heatmap-
+seeded mechanism and standard approaches under
+the newly introduced challenging subsets.
+Datasets and Annotations
+We evaluate our method on the publicly available
+astrocyte histology dataset introduced by Olar
+et al. [34]. This dataset consists of immunohis-
+tochemically stained human brain tissue samples
+with annotations of astrocyte cell bodies. In total,
+8730 image patches (each 500×500 pixels) were
+extracted from whole-slide images across 16 slides
+from 8 patients . The dataset is stratified into two
+distinct staining conditions to capture morpholog-
+ical heterogeneity. The first subset comprises 3,705
+patches stained for ALDH1L1, a pan-astrocyte
+marker that primarily labels the cell body [6]; this
+subset is partitioned into 3,281 patches for train-
+ing/validation and 424 for testing. The second
+subset consists of 5,025 patches stained for GFAP,
+which highlights astrocytic cytoskeletal filaments
+[6], divided into 4,593 for training/validation and
+432 for testing.
+These patches were acquired at two differ-
+ent digital scanning resolutions: a set at 0.5019
+µm/pixel and another at 0.3557 µm/pixel .
+Accordingly, the dataset is divided into three
+test cohorts reflecting different sources and imag-
+ing conditions: 1. Test 05019 Cohort 1: Held-out
+patches at 0.5019 µm/px from a subset of patients
+(brightfield images, either ALDH1L1 or GFAP
+stained). 2. Test 05019 Cohort 2: Additional
+held-out patches at 0.5019 µm/px from different
+slides/patients, to assess variability. 3. Test 03557
+Cohort: Patches at the finer resolution of 0.3557
+µm/px (includes both stains).
+All images are RGB brightfield micrographs
+with DAB chromogen staining. Each astrocyte in
+a patch was annotated by experts with a bound-
+ing box delineating the cell body extent. Multiple
+annotators contributed, and a consensus annota-
+tion was established for ground truth. The test
+sets are fully independent of training data, rep-
+resenting unseen patients and slides to evaluate
+generalization. We use the same fixed train/test
+split defined in the original dataset to enable
+direct comparison with the published baseline.
+Additionally, we set aside approximately 10% of
+the train as a validation to help us identify the
+optimal model. A detailed quantitative breakdown
+of the splits and annotations is provided in Table
+1.
+Results
+Robustness Across Staining
+Conditions and Resolutions
+The primary objective of our evaluation was to
+determine whether the proposed hybrid architec-
+ture could generalize across the significant domain
+shifts inherent in human IHC. As summarized
+in Table 2 and Table 3, our Heatmap-Seeded
+Query Transformer achieved consistently higher
+detection accuracy compared to the rigorously
+retrained Faster R-CNN baseline in the vast
+majority of test configurations.
+7
+Table 1: Summary of the Astrocyte Histology Dataset. The table details the number of images, total
+annotations, and the average number of instances per image across different stains and data splits.
+Stain
+Split / Cohort
+Images
+Total Annotations
+Mean Ann.
+ALDH1L1
+Train
+2,961
+38,735
+13.09
+Validation
+320
+4,254
+13.27
+Test 05019 1
+140
+1,954
+13.96
+Test 05019 2
+95
+1,332
+14.02
+Test 03557
+189
+2,263
+11.97
+GFAP
+Train
+4,134
+47,421
+11.47
+Validation
+459
+5,059
+11.02
+Test 05019 1
+200
+803
+4.02
+Test 05019 2
+95
+890
+9.37
+Test 03557
+137
+972
+7.09
+Specifically, in terms of Average Precision
+(AP), our model delivered improvements in five
+out of the six cohort-stain combinations. The
+most substantial gains were observed in the high-
+resolution 03557 cohort, where AP for ALDH1L1
+increased by 0.102 (from 0.544 to 0.646, a relative
+improvement of nearly 19%), and AP for GFAP
+improved from 0.759 to 0.765. This trend suggests
+that the hybrid design is particularly effective
+at exploiting fine-grained spatial details that are
+often lost by standard CNN downsampling.
+Even in the 05019 cohorts where the base-
+line performance was already strong, our method
+maintained a steady advantage. For instance, in
+Cohort 2, ALDH1L1 AP increased from 0.833 to
+0.868, while GFAP AP rose from 0.794 to 0.819.
+We note a marginal performance inversion strictly
+within the sparse GFAP 05019 Cohort 1 (AP 0.323
+vs. baseline 0.326), which, as discussed later, is
+heavily driven by the extreme sparsity and atyp-
+ical artifact distribution unique to this specific
+subset. Collectively, the macro-average AP across
+all settings improved from 0.664 for the retrained
+baseline to 0.700. These results strongly support
+the first part of our central claim: the combi-
+nation of heatmap priors and global reasoning
+provides a robust detection framework resilient
+to both stain variability and resolution changes.
+Furthermore, to facilitate direct reference to the
+foundational dataset paper, a comprehensive com-
+parison against the aggregate metrics originally
+published by Olar et al. [34] is provided in the
+Supplementary Material (Table S3), demonstrat-
+ing that our model maintains a uniform advantage
+across all six original baseline configurations.
+Table 2: Average Precision (AP@[0.05:0.50], ”all”
+scale) comparing the retrained Faster R-CNN base-
+line and our detector. Higher is better; bold denotes
+the leading method.
+Test Cohort (Stain)
+Baseline AP
+Ours AP
+05019 Cohort 1 (ALDH1L1)
+0.730
+0.777
+05019 Cohort 1 (GFAP)
+0.326
+0.323
+05019 Cohort 2 (ALDH1L1)
+0.833
+0.868
+05019 Cohort 2 (GFAP)
+0.794
+0.819
+03557 (ALDH1L1)
+0.544
+0.646
+03557 (GFAP)
+0.759
+0.765
+Validation of Candidate Sufficiency
+in Challenging Scenarios
+A key theoretical advantage of our method is
+the ability to resolve the candidate sufficiency
+problem for highly challenging biological targets,
+specifically weakly stained somata and densely
+overlapping cell clusters. To provide a rigorous
+validation, we conducted a stratified evaluation
+focusing on the low-contrast subsets (instances
+with the lowest local DAB contrast Cj) and dense
+subsets (instances with local density Dj ≥2).
+To ensure absolute transparency and validate the
+statistical robustness of these challenging subsets,
+the exact sample sizes for low-contrast instances,
+8
+Table 3: Average Recall (AR@[0.05:0.50], ”all”
+scale) comparing the retrained Faster R-CNN base-
+line and our detector. Higher is better; bold denotes
+the leading method.
+Test Cohort (Stain)
+Baseline AR
+Ours AR
+05019 Cohort 1 (ALDH1L1)
+0.869
+0.904
+05019 Cohort 1 (GFAP)
+0.844
+0.730
+05019 Cohort 2 (ALDH1L1)
+0.922
+0.951
+05019 Cohort 2 (GFAP)
+0.931
+0.936
+03557 (ALDH1L1)
+0.727
+0.852
+03557 (GFAP)
+0.931
+0.945
+dense instances, and highly crowded pairs across
+all test cohorts are thoroughly documented in the
+Supplementary Material (Table S4).
+Furthermore,
+we
+explicitly
+compare
+our
+method against the Deformable DETR baseline
+to demonstrate the impact of query initializa-
+tion paradigms. While both architectures uti-
+lize Transformer-based decoding, DETR relies
+on
+content-agnostic
+learned
+queries,
+whereas
+our approach employs heatmap-seeded, spatially
+grounded queries.
+The empirical results, summarized in Table 4,
+reveal a performance disparity in these challenging
+scenarios across both stains. In the fine-resolution
+03557 ALDH1L1 cohort, our model achieved a
+low-contrast AP of 0.318, significantly surpass-
+ing Deformable DETR (0.217) and Faster R-CNN
+(0.246). This substantial margin underscores the
+limitations of blind query initialization for faint
+biological targets and validates the superior effi-
+cacy of explicit spatial priors. This quantitative
+advantage is further corroborated by qualitative
+visual evidence (Figure 2). As demonstrated, our
+continuous heatmap effectively isolates weakly
+stained somata from the background tissue, suc-
+cessfully generating distinct, robust spatial peaks
+to seed the initial queries even when the local
+visual contrast is severely degraded.
+As quantified by the Pair-Separation Recall
+(PSR), our model successfully separated 80.0%
+of extremely close pairs in the ALDH1L1 03557
+cohort, significantly outperforming Deformable
+DETR (55.0%), YOLOv11 (29.6%) and Faster R-
+CNN (49.2%). While baseline models occasionally
+achieved competitive PSR in specific sparse GFAP
+subsets such as GFAP 03557, our hybrid archi-
+tecture consistently maintained robust separation
+capabilities across diverse crowding conditions
+without relying on aggressive heuristic filtering.
+(Detailed overall detection COCO metrics across
+all object scales and test cohorts are provided in
+Supplementary Tables S5 and S6).
+Sensitivity-False Positive Trade-off
+Analysis
+To evaluate whether the increased recall comes
+at the cost of excessive false positives, we con-
+ducted a Free-Response ROC (FROC) analysis.
+As depicted in Figure 3, our model demonstrates
+highly robust performance, particularly in the
+clinically relevant low-False Positive Per Image
+(FPPI) regime.
+Performance on 05019 Cohort.
+In Cohort 2 (Figure 3a), the FROC curve for our
+model (blue line) rises steeply and maintains an
+upper envelope over the baselines. For ALDH1L1,
+our method achieves higher sensitivity at fewer
+than 2.5 FPPI compared to all baselines, includ-
+ing YOLOv11 and Deformable DETR. For GFAP,
+it similarly exceeds the rigorously retrained Faster
+R-CNN, demonstrating a superior sensitivity-
+precision balance. In Cohort 1 (Figure 3b), our
+curve consistently dominates the low-FPPI region
+for the ALDH1L1 subset. In the highly sparse
+and challenging GFAP Cohort 1 subset, our model
+performs competitively, yielding an FROC tra-
+jectory nearly identical to the retrained Faster
+R-CNN. This indicates that the model efficiently
+discriminates between true somata and back-
+ground noise, even in artifact-heavy environments,
+without requiring the aggressive post-processing
+typical of CNNs.
+Performance on High-Resolution Cohort.
+The advantages of heatmap-seeded queries are
+most pronounced in the finer resolution 03557
+cohort (Figure 3c). For ALDH1L1, our model
+shows a distinct, wide separation from all base-
+lines, sustaining a significant sensitivity margin
+across the critical 0 to 10 FPPI range. For GFAP,
+it performs on par with, and slightly exceeds,
+the strong Faster R-CNN baseline while signif-
+icantly outperforming both Deformable DETR
+and YOLOv11. The narrow 95% confidence bands
+9
+Fig. 2: Qualitative visualization of the heatmap-seeded query initialization process. (Top
+Left) The original RGB brightfield input patch overlaid with ground-truth (GT) bounding boxes (green).
+(Top Right) The predicted continuous center heatmap output by the CNN backbone. (Bottom Left)
+The heatmap overlaid on the original image with dynamically extracted spatial peaks (white dots).
+The smooth, transparent plasma mapping effectively isolates faint and weakly stained somata from the
+background, generating robust local maxima even when the visual contrast is severely degraded. (Bottom
+Right) The final refined bounding box predictions (red) from the Transformer decoder. The architecture
+successfully leverages these explicit spatial priors to resolve dense local crowding and separate highly
+overlapping instances.
+10
+Table 4: Stratified evaluation on challenging subsets (Low-Contrast AP and Dense AP) and Pair-
+Separation Recall (PSR) across ALDH1L1 and GFAP test cohorts. The best results for each metric within
+a cohort are highlighted in bold. Faster R-CNN results represent our rigorously replicated retraining uti-
+lizing the identical splits and parameters from olar et al.[34].
+Stain
+Cohort
+Model
+Low-Contrast AP
+Dense AP
+PSR
+ALDH1L1
+05019 C1
+Ours
+0.546
+0.024
+0.583
+YOLOv11
+0.487
+0.023
+0.542
+Deformable DETR
+0.469
+0.008
+0.562
+Faster R-CNN
+0.494
+0.015
+0.438
+05019 C2
+Ours
+0.570
+0.356
+0.571
+YOLOv11
+0.490
+0.237
+0.429
+Deformable DETR
+0.532
+0.178
+0.545
+Faster R-CNN
+0.485
+0.236
+0.442
+03557
+Ours
+0.318
+0.120
+0.800
+YOLOv11
+0.092
+0.016
+0.296
+Deformable DETR
+0.217
+0.051
+0.550
+Faster R-CNN
+0.246
+0.121
+0.492
+GFAP
+05019 C1
+Ours
+0.113
+0.003
+0.760
+YOLOv11
+0.062
+0.003
+0.080
+Deformable DETR
+0.074
+0.002
+0.560
+Faster R-CNN
+0.118
+0.003
+0.600
+05019 C2
+Ours
+0.556
+0.179
+0.807
+YOLOv11
+0.236
+0.077
+0.351
+Deformable DETR
+0.245
+0.009
+0.895
+Faster R-CNN
+0.514
+0.054
+0.281
+03557
+Ours
+0.514
+0.044
+0.969
+YOLOv11
+0.247
+0.016
+0.156
+Deformable DETR
+0.192
+0.021
+0.938
+Faster R-CNN
+0.443
+0.037
+0.969
+across these plots further support the stability of
+our method across diverse patient samples.
+Qualitative Assessment and Failure
+Analysis
+Visual inspection of the detection results directly
+corroborates the stratified quantitative metrics.
+Figure 4 presents a representative qualitative com-
+parison across all evaluated architectures on an
+ALDH1L1-stained patch characterized by densely
+clustered somata. As explicitly highlighted by
+the blue circles, the baseline models struggle
+significantly in these highly crowded local neigh-
+borhoods. The Deformable DETR (Figure 4b)
+exhibits severe under-detection, underscoring the
+limitations of content-agnostic queries when tar-
+gets are tightly packed. Similarly, both YOLOv11
+(Figure 4c) and Faster R-CNN (Figure 4d) fail
+to reliably separate adjacent instances, often erro-
+neously merging them into single bounding boxes
+or completely missing heavily overlapped cells
+due to anchor entanglement and heuristic non-
+maximum suppression (NMS). In contrast, our
+hybrid model (Figure 4a) successfully isolates
+these densely overlapping cells. It assigns distinct
+bounding boxes to each soma with precise one-to-
+one matching, strongly suggesting the efficacy of
+combining heatmap-seeded spatial priors with the
+Transformer’s global query competition.
+Despite these significant improvements, our
+model is not completely immune to errors in
+11
+(a) 05019 Cohort 2 (left: ALDH1L1, right: GFAP)
+(b) 05019 Cohort 1 (left: ALDH1L1, right: GFAP)
+(c) 03557 (left: ALDH1L1, right: GFAP)
+Fig. 3: Bootstrap FROC analysis comparing the proposed model against baselines across three test
+cohorts. (a) 05019 Cohort 2 results for ALDH1L1 (left) and GFAP (right). (b) 05019 Cohort 1 results.
+(c) 03557 High-Resolution Cohort results. The curves represent mean sensitivity with 95% confidence
+intervals (shaded regions). Our model (blue) consistently achieves higher sensitivity at lower False Positive
+Per Image (FPPI) rates, particularly in the ALDH1L1 datasets.
+12
+highly complex histological landscapes. Occa-
+sional false negatives (missed detections) and
+under-detection
+can
+occur,
+particularly
+when
+extremely
+hypertrophic
+reactive
+astrocytes
+present with highly fragmented, irregular DAB
+staining that disrupts the initial heatmap peak
+generation.
+Additionally,
+some
+false
+positives
+arise in areas with severe non-specific chromogen
+pooling or tissue folding artifacts that closely
+mimic astrocytic somata. A detailed visual analy-
+sis and discussion of these specific failure cases are
+provided in the Supplementary Material (Figure
+S1) to ensure a fully transparent evaluation of the
+model’s limitations.
+Discussion
+The results presented in this study substanti-
+ate our central hypothesis: effective automation
+of human neuropathology requires bridging the
+gap between local textural sensitivity and global
+structural reasoning. By outperforming the Faster
+R-CNN baseline [34] and the Deformable DETR
+architecture [13] in the vast majority of test
+cohorts, our Heatmap-Seeded Query Transformer
+demonstrates that explicitly coupling spatial pri-
+ors with global attention provides a robust solu-
+tion to the challenges of stain variability and
+resolution shifts inherent in clinical samples.
+The most significant performance improve-
+ments, particularly the substantial increase in
+AP observed in the low-contrast subsets, pro-
+vide empirical support for the mechanism of can-
+didate sufficiency. Standard Transformer detec-
+tors typically rely on learned queries that are
+content-agnostic at initialization. As evidenced by
+the comparative analysis against the Deformable
+DETR baseline (Table 4), this blind search strat-
+egy often fails to converge on faintly stained
+somata. In contrast, our approach utilizes the
+heatmap to inject strong spatial priors into
+the decoding process. This ensures that even
+severely degraded morphological features trigger a
+query, effectively eliminating the cold-start prob-
+lem inherent in standard DETR-like architectures.
+Consequently, the model captures dim or border-
+localized cells that are systematically missed by
+standard Transformers, confirming that explicit
+spatial grounding is indispensable for detecting
+biological targets lacking strong visual promi-
+nence.
+Regarding the challenge of cellular crowding,
+our stratified evaluation on dense subsets and
+the remarkably high Pair-Separation Recall (PSR)
+confirm that the mechanism of global competitive
+assignment effectively isolates adjacent instances.
+CNN detectors such as Faster R-CNN and YOLO
+[7–10] rely heavily on heuristic non-maximum
+suppression (NMS). In dense astrocytic networks
+where processes intertwine, heuristic NMS suffers
+from severe anchor entanglement and erroneously
+suppresses true positives. Our ablation studies
+empirically confirm that the Transformer’s self-
+attention mechanism successfully models the rela-
+tionships between overlapping queries to resolve
+this crowding natively. The supplementary abla-
+tion demonstrates that the lightweight Soft-NMS
+applied during inference removes virtually zero
+initial predictions, acting merely as a residual
+score-decay filter for rare split peaks. Thus, the
+primary burden of duplicate removal is handled
+by the learnable one-to-one matching objective,
+resulting in a cleaner and more robust detection
+set compared to purely anchor-based approaches.
+We further observed that the differential gains
+between ALDH1L1 and GFAP cohorts reflect the
+distinct morphological challenges posed by each
+marker. The baseline models already achieved
+high recall on certain GFAP slides, likely due to
+the prominent, high-contrast filament structures
+that are easily captured by convolutional filters.
+However, our model still delivered critical incre-
+mental gains in precision, primarily by reducing
+false positives in regions with non-specific DAB
+background staining. In contrast, the substan-
+tial improvements in ALDH1L1 detection high-
+light the necessity of the hybrid architecture for
+identifying globular, low-contrast somata, which
+require the contextual integration capabilities of
+the Transformer to be reliably distinguished from
+the neuropil background.Additionally, the pro-
+nounced performance disparity observed between
+GFAP 05019 Cohort 1 and Cohort 2 is intrinsi-
+cally tied to the fundamental structural composi-
+tion of the test sets. As outlined in our dataset
+structure, Cohort 1 encapsulates a significantly
+higher proportion of complex anatomical struc-
+tures and sparse target distributions. Importantly,
+this structural complexity directly elucidates why
+the FROC curves for these two cohorts appear
+highly comparable despite the substantial gap in
+13
+Fig. 4: Qualitative comparison of detection performance in densely crowded scenarios. The
+four panels display the detection results from (a) our proposed model, (b) Deformable DETR, (c)
+YOLOv11, and (d) Faster R-CNN. Ground-truth annotations are marked by green boxes, and model
+predictions are indicated by red boxes. The blue circles explicitly highlight highly crowded local neighbor-
+hoods with densely overlapping astrocyte somata. While the Deformable DETR suffers from candidate
+insufficiency, and the CNN-based baselines (YOLOv11 and Faster R-CNN) exhibit severe anchor entan-
+glement and NMS-induced bounding box merging, our heatmap-guided architecture successfully localizes
+and separates these tightly clustered instances without redundant predictions.
+14
+their COCO metrics. The COCO AP/AR scores
+mandate strict bounding-box Intersection-over-
+Union (IoU) overlap, heavily penalizing minor
+boundary deviations caused by the highly irreg-
+ular astrocytic processes predominant in Cohort
+1. Conversely, our FROC analysis employs center-
+point matching, which strictly evaluates localiza-
+tion accuracy independent of bounding-box scale.
+This demonstrates that while exact boundary
+delineation is perturbed by the complex tissue
+architecture in Cohort 1, our model successfully
+and consistently localizes the actual astrocytic
+centers across both cohorts.
+Despite these promising results, we acknowl-
+edge critical areas for future investigation, partic-
+ularly regarding model generalization and annota-
+tion costs. A significant challenge in fully super-
+vised histopathological object detection is the
+prohibitive cost of expert annotation, which scales
+poorly when generalizing to new laboratory envi-
+ronments, different scanners, or novel immunohis-
+tochemical markers. From a practical deployment
+perspective, our pre-trained model can be applied
+directly out-of-the-box to new clinical cohorts
+that share similar staining protocols and scan-
+ner characteristics. However, in the presence of
+severe domain shifts—such as extreme variations
+in DAB intensity, background chromogen pooling,
+or novel tissue preparation techniques—we rec-
+ommend employing lightweight fine-tuning with a
+minimal set of in-domain annotations to recali-
+brate the heatmap priors. To further mitigate this
+annotation bottleneck and improve cross-domain
+generalization, future work must explore weakly
+supervised learning, active learning paradigms,
+or self-supervised feature extraction to adapt the
+model with minimal manual intervention. Finally,
+the current framework focuses strictly on reliable
+bounding-box localization and counting. Given
+the complex branching morphology of astrocytes,
+extending this upstream architecture to include a
+downstream segmentation branch remains a nec-
+essary step toward comprehensive morphometric
+analysis.
+Conclusions
+This work establishes that incorporating heatmap-
+seeded spatial priors into a Transformer detec-
+tion pipeline effectively mitigates the sensitivity-
+precision trade-off in astrocyte quantification. By
+addressing the specific bottleneck of candidate
+sufficiency for low-contrast targets and demon-
+strating robust, highly competitive instance sep-
+aration in densely crowded scenes, the proposed
+framework advances the methodological standard
+for automated analysis in human neuropathology.
+These findings provide a scalable foundation for
+future computational tools aimed at dissecting
+glial function in health and disease.
+List of Abbreviations
+Abbreviation
+Full Name
+AP
+Average Precision
+AR
+Average Recall
+CIoU
+Complete Intersection over Union
+CNN
+Convolutional Neural Network
+DETR
+Detection Transformer
+FFN
+Feed-Forward Network
+FPN
+Feature Pyramid Network
+FPPI
+False Positives Per Image
+FROC
+Free-Response ROC
+IHC
+Immunohistochemistry
+IoU
+Intersection over Union
+NMS
+Non-Maximum Suppression
+PE
+Positional Encoding
+Faster R-CNN
+Faster Region-based CNN
+Declarations
+Ethics approval and consent to
+participate
+This study utilizes a publicly available dataset
+introduced by Olar et al. [33]. As the data were
+anonymized and obtained from a public reposi-
+tory, specific ethical approval and informed con-
+sent were not required for this secondary analysis.
+Consent for publication
+Not applicable.
+Availability of data and materials
+The public dataset analyzed during the current
+study is available in the Scientific Data repository
+as described by Olar et al. [33]. The code used
+for model training and evaluation is available at
+https://github.com/attenfre/Detection.
+15
+Competing interests
+The authors declare that they have no competing
+interests.
+Funding
+This work was supported by the National Natural
+Science Foundation of China [62176129], National
+Natural Science Foundation of China-Jiangsu
+Joint Fund [U24A20701], the Hong Kong RGC
+Strategic Target Grant [grant number STG1/M-
+501/23-N]
+Authors’ contributions
+XZ conceived the study and drafted manuscript.
+JZ implemented the algorithm and performed
+data analysis. All authors contributed to the
+preparation of the manuscript.
+Acknowledgments
+We thank the reviewers for their valuable sugges-
+tions.
+References
+[1] Verkhratsky
+A,
+et
+al.
+Astrocytes
+in
+human
+central
+nervous
+system
+diseases.
+Signal
+Transduction
+and
+Targeted
+Ther-
+apy. 2023;8:396.
+https://doi.org/10.1038/
+s41392-023-01628-9.
+[2] Sofroniew
+MV.
+Astrocyte
+reactivity:
+Subtypes,
+states,
+and
+functions
+in
+CNS
+innate immunity.
+Trends in Immunology.
+2020;41:758–770.
+https://doi.org/10.1016/j.
+it.2020.07.004.
+[3] Escartin C, et al. Reactive astrocyte nomen-
+clature, definitions, and future directions.
+Nature Neuroscience. 2021;24:312–325. https:
+//doi.org/10.1038/s41593-020-00783-4.
+[4] Hasel P, et al. Neuroinflammatory astrocyte
+subtypes in the mouse brain. Nature Neuro-
+science. 2021;24:1475–1487. https://doi.org/
+10.1038/s41593-021-00905-6.
+[5] Lawrence JM, et al. Roles of neuropathology-
+associated reactive astrocytes: a systematic
+review. Acta Neuropathologica Communica-
+tions. 2023;11:42.
+https://doi.org/10.1186/
+s40478-023-01526-9.
+[6] Jurga AM, Paleczna M, Kuter KZ. Beyond
+the GFAP—astrocyte protein markers in the
+brain. Biomolecules. 2021;11:1361. https://
+doi.org/10.3390/biom11091361.
+[7] Redmon J, Divvala S, Girshick R, Farhadi
+A. You Only Look Once: Unified, Real-Time
+Object Detection. Proceedings of the IEEE
+Conference on Computer Vision and Pattern
+Recognition (CVPR). 2016;https://doi.org/
+10.1109/CVPR.2016.91.
+[8] Chen Q, Wang Y, Yang T, Zhang X, Cheng
+J, Sun J. You Only Look One-Level Feature.
+Proceedings of the IEEE/CVF Conference
+on Computer Vision and Pattern Recogni-
+tion (CVPR). 2021;https://doi.org/10.1109/
+CVPR46437.2021.01284.
+[9] Redmon J, Farhadi A. YOLO9000: Better,
+Faster, Stronger.
+Proceedings of the IEEE
+Conference on Computer Vision and Pattern
+Recognition (CVPR). 2017;https://doi.org/
+10.1109/CVPR.2017.690.
+[10] Feng
+C,
+Zhong
+Y,
+Gao
+Y,
+Scott
+MR,
+Huang W.
+TOOD: Task-Aligned One-
+Stage Object Detection.
+Proceedings of
+the IEEE/CVF International Conference on
+Computer Vision (ICCV). 2021;https://doi.
+org/10.1109/ICCV48922.2021.00349.
+[11] Ren S, He K, Girshick R, Sun J.
+Faster
+R-CNN: Towards real-time object detection
+with region proposal networks. IEEE trans-
+actions on pattern analysis and machine
+intelligence. 2016;39(6):1137–1149.
+[12] Carion N, Massa F, Synnaeve G, Usunier
+N,
+Kirillov
+A,
+Zagoruyko
+S.
+End-to-
+End
+Object
+Detection
+with
+Transform-
+ers.
+Computer
+Vision
+–
+ECCV
+2020.
+2020;12346:213–229.
+https://doi.org/10.
+1007/978-3-030-58452-8 13.
+[13] Zhu X, Su W, Lu L, Li B, Wang X, Dai
+J.
+Deformable DETR: Deformable Trans-
+formers for End-to-End Object Detection.
+16
+International Conference on Learning Repre-
+sentations (ICLR). 2021;.
+[14] Meng D, Chen X, Fan Z, Zeng G, Li H,
+Yuan Y, et al.
+Conditional DETR for
+Fast Training Convergence.
+Proceedings
+of the IEEE/CVF International Conference
+on Computer Vision (ICCV). 2021;p. 3651–
+3660.
+https://doi.org/10.1109/ICCV48922.
+2021.00363.
+[15] Liu S, Li F, Zhang H, Ji X, Sun J, Su H, et al.
+DAB-DETR: Dynamic Anchor Boxes are
+Better Queries for DETR. International Con-
+ference on Learning Representations (ICLR).
+2022;.
+[16] Li F, Zhang H, Liu S, Guo J, Ni LM,
+Zhang L.
+DN-DETR: Accelerate DETR
+Training by Introducing Query DeNoising.
+Proceedings of the IEEE/CVF Conference
+on Computer Vision and Pattern Recogni-
+tion (CVPR). 2022;p. 13619–13627.
+https:
+//doi.org/10.1109/CVPR52688.2022.01325.
+[17] Zhang H, Li F, Liu S, Zhang L. DINO: DETR
+with Improved DeNoising Anchor Boxes for
+End-to-End
+Object
+Detection.
+Interna-
+tional Conference on Learning Representa-
+tions (ICLR). 2023;.
+[18] Sun P, Zhang R, Jiang Y, Kong T, Xu C,
+Zhan W, et al. Sparse R-CNN: End-to-End
+Object Detection with Learnable Proposals.
+Proceedings of the IEEE/CVF Conference
+on Computer Vision and Pattern Recogni-
+tion (CVPR). 2021;https://doi.org/10.1109/
+CVPR46437.2021.01422.
+[19] Dosovitskiy A, Beyer L, Kolesnikov A, Weis-
+senborn D, Zhai X, Unterthiner T, et al. An
+Image is Worth 16x16 Words: Transformers
+for Image Recognition at Scale.
+Interna-
+tional Conference on Learning Representa-
+tions (ICLR). 2021;.
+[20] Liu Z, Lin Y, Cao Y, Hu H, Wei Y, Zhang
+Z, et al.
+Swin Transformer: Hierarchical
+Vision Transformer Using Shifted Windows.
+Proceedings of the IEEE/CVF International
+Conference on Computer Vision (ICCV).
+2021;p. 10012–10022.
+https://doi.org/10.
+1109/ICCV48922.2021.00986.
+[21] Liu Z, Mao H, Wu CY, Feichtenhofer C, Dar-
+rell T, Xie S.
+A ConvNet for the 2020s.
+Proceedings of the IEEE/CVF Conference
+on Computer Vision and Pattern Recogni-
+tion (CVPR). 2022;p. 11976–11986.
+https:
+//doi.org/10.1109/CVPR52688.2022.01167.
+[22] He K, Chen X, Xie S, Li Y, Doll´ar P, Girshick
+R. Masked Autoencoders Are Scalable Vision
+Learners.
+Proceedings of the IEEE/CVF
+Conference on Computer Vision and Pat-
+tern Recognition (CVPR). 2022;p. 16000–
+16009. https://doi.org/10.1109/CVPR52688.
+2022.01553.
+[23] Caron
+M,
+Touvron
+H,
+Misra
+I,
+J´egou
+H,
+Mairal
+J,
+Bojanowski
+P,
+et
+al.
+Emerging
+Properties
+in
+Self-Supervised
+Vision Transformers.
+Proceedings of the
+IEEE/CVF
+International
+Conference
+on
+Computer
+Vision
+(ICCV).
+2021;https:
+//doi.org/10.1109/ICCV48922.2021.00951.
+[24] Chen RJ, Chen C, Li Y, Chen TY, Tris-
+ter AD, Krishnan RG, et al. Scaling Vision
+Transformers to Gigapixel Images via Hierar-
+chical Self-Supervised Learning. Proceedings
+of the IEEE/CVF Conference on Computer
+Vision and Pattern Recognition (CVPR).
+2022;p. 16144–16155.
+https://doi.org/10.
+1109/CVPR52688.2022.01567.
+[25] Chang JR, et al.
+Stain Mix-Up: Unsuper-
+vised Domain Generalization for Histopathol-
+ogy
+Images.
+Medical
+Image
+Comput-
+ing
+and
+Computer
+Assisted
+Intervention
+– MICCAI 2021. 2021;https://doi.org/10.
+1007/978-3-030-87199-4 11.
+[26] Xu C, Wen Z, Liu Z, et al.
+Improved
+Domain Generalization for Cell Detection
+in
+Histopathology
+Images
+via
+Test-Time
+Stain Augmentation.
+Medical Image Com-
+puting and Computer Assisted Intervention
+– MICCAI 2022. 2022;https://doi.org/10.
+1007/978-3-031-16434-7 15.
+[27] Nguyen TH, Juyal D, Li J, Prakash A,
+Nofallah S, Shah C, et al. ContriMix: Scal-
+able Stain Color Augmentation for Domain
+17
+Generalization Without Domain Labels in
+Digital Pathology. Proceedings of the MIC-
+CAI Workshop on Computational Pathology
+(Proceedings of Machine Learning Research).
+2024;254:121–130.
+[28] Kim T, et al. Stain SAN: simultaneous aug-
+mentation and normalization for histopathol-
+ogy images.
+Journal of Medical Imaging.
+2024;11:044006.
+https://doi.org/10.1117/1.
+JMI.11.4.044006.
+[29] Kayasandik CB, et al.
+A multistep deep
+learning framework for the automated detec-
+tion and segmentation of astrocytes in flu-
+orescent images of brain tissue.
+Scientific
+Reports. 2020;10:5137.
+https://doi.org/10.
+1038/s41598-020-61953-9.
+[30] Huang
+X,
+et
+al.
+Automated
+detec-
+tion of GFAP-labelled astrocytes in micro-
+graphs using YOLOv5.
+Scientific Reports.
+2022;12:22263.
+https://doi.org/10.1038/
+s41598-022-26698-7.
+[31] Xu N, et al.
+AI Cell Counter: An open-
+source multiple cells detection and counting
+tool for microscopy images.
+Neuroscience
+Bulletin. 2023;39:83–88. https://doi.org/10.
+1007/s12264-022-00895-w.
+[32] Duan K, Bai S, Xie L, Qi H, Huang Q,
+Tian
+Q.
+CenterNet:
+Keypoint
+Triplets
+for
+Object
+Detection.
+Proceedings
+of
+the IEEE/CVF International Conference on
+Computer Vision (ICCV). 2019;p. 6568–6577.
+https://doi.org/10.1109/ICCV.2019.00667.
+[33] Zhang S, Chi C, Yao Y, Lei Z, Li SZ. Bridging
+the Gap Between Anchor-Based and Anchor-
+Free Detection via Adaptive Training Sample
+Selection.
+Proceedings of the IEEE/CVF
+Conference on Computer Vision and Pat-
+tern Recognition (CVPR). 2020;p. 9756–
+9765.
+https://doi.org/10.1109/CVPR42600.
+2020.00978.
+[34] Olar A, Tyler T, Hoppa P, Frank E, Csabai
+I, Adorjan I, et al.
+Annotated dataset
+for training deep learning models to detect
+astrocytes in human brain tissue. Scientific
+Data. 2024;11:96.
+https://doi.org/10.1038/
+s41597-024-02908-x.
+[35] Zheng Z, Wang P, Liu W, Li J, Ye R, Ren
+D.
+Distance-IoU Loss: Faster and Better
+Learning for Bounding Box Regression. Pro-
+ceedings of the AAAI Conference on Artificial
+Intelligence. 2020;34:12993–13000.
+https://
+doi.org/10.1609/aaai.v34i07.6999.
+[36] Jocher G, Qiu J.: Ultralytics YOLO11. Avail-
+able
+from:
+https://github.com/ultralytics/
+ultralytics.
+Supplement
+Ablation Study on Post-Processing
+Non-Maximum Suppression
+To empirically validate our assertion that the
+Transformer decoder naturally learns global com-
+petitive assignment and does not rely on post-
+processing heuristics to resolve crowded somata,
+we conducted a comprehensive ablation study
+removing the Soft-NMS step entirely. As detailed
+in Supplementary Table S1, the Raw network
+natively outputs a highly refined set of bounding
+boxes with exceptional precision and recall across
+all test cohorts.
+When Soft-NMS (IoU threshold = 0.5, σ =
+0.5) is applied to these raw predictions, it merely
+functions as a soft score-decay filter. Conse-
+quently, the performance gain is exceptionally
+marginal, confirming that the Soft-NMS mecha-
+nism acts strictly as a lightweight residual cleanup
+for occasional heatmap split peaks, rather than a
+primary solution for separating dense overlapping
+instances.
+Computational Efficiency
+Comparison
+To provide a comprehensive view of the trade-
+off between detection accuracy and computational
+cost, we measured the inference latency, through-
+put, and peak GPU memory consumption across
+all evaluated models. The benchmarking was per-
+formed on an NVIDIA A100 GPU using a stan-
+dard batch size of 4 with an input resolution
+of 512 × 512 pixels. As shown in Table S2, our
+proposed method maintains a highly manageable
+18
+Table S1: Ablation study of the residual Soft-NMS algorithm across all ALDH1L1 and GFAP test
+cohorts. The Raw model represents the direct output from the Transformer decoder without any post-
+processing suppression. The Suppression Rate denotes the fraction of bounding boxes completely removed
+by Soft-NMS.
+Stain
+Cohort
+Raw (No NMS)
+With Soft-NMS
+Suppression Rate
+AP
+AR
+AP
+AR
+ALDH1L1
+05019 C1
+0.777
+0.905
+0.777
+0.905
+0.0%
+05019 C2
+0.868
+0.952
+0.868
+0.952
+0.0%
+03557
+0.646
+0.853
+0.646
+0.853
+0.0%
+GFAP
+05019 C1
+0.323
+0.731
+0.323
+0.731
+0.0%
+05019 C2
+0.820
+0.938
+0.821
+0.938
+0.04%
+03557
+0.765
+0.926
+0.765
+0.926
+0.0%
+memory footprint (1.39 GB) and operates faster
+than the Deformable DETR architecture.
+Comparison with Originally
+Published Baselines
+In the main text, all comparative analyses strictly
+utilize a rigorously retrained Faster R-CNN base-
+line. This ensures that both our proposed model
+and the baseline are evaluated under identical
+environmental configurations and hyperparame-
+ter settings, particularly for the newly introduced
+local contrast and density stratifications. However,
+for complete transparency and to facilitate direct
+reference to the foundational dataset paper, Table
+S3 presents a comparison between our Heatmap-
+Seeded Query Transformer and the aggregate
+Faster R-CNN metrics exactly as originally pub-
+lished by Olar et al. [34].
+As demonstrated, when compared against the
+originally reported metrics, our proposed architec-
+ture maintains a clear and consistent advantage
+across all six independent test cohorts. Notably,
+it overcomes the candidate sufficiency bottleneck
+in the high-resolution ALDH1L1 03557 cohort
+(improving AP from 0.540 to 0.646) and suc-
+cessfully surpasses the published baseline even
+in the sparse GFAP 05019 Cohort 1 (AP 0.323
+vs. published 0.312). Overall, our model yields a
+macro-average Average Precision (AP) of 0.699
+compared to the published 0.651, further confirm-
+ing the broad applicability of explicitly coupling
+spatial priors with global attention.
+Stratified Sample Size Distribution
+To provide transparent context for the strati-
+fied evaluation metrics (Local Contrast AP, Dense
+AP, and Pair-Separation Recall) presented in the
+main text, Table S4 details the absolute num-
+ber of ground-truth annotations falling into these
+specific sub-categories across all six test cohorts.
+Notably, the target distribution varies signifi-
+cantly across different datasets. For instance, the
+sparse GFAP 05019 Cohort 1 and Cohort 2 con-
+tain a mere 8 and 7 dense instances (Dj ≥2),
+respectively. Similarly, the highly crowded pairs
+(∥cj −ck∥2 ≤τ) in these specific subsets are
+extremely scarce (25 and 57 pairs, respectively).
+This extreme sample scarcity directly explains
+the low Dense AP and the numerical instability
+observed in these specific GFAP subsets across
+all evaluated architectures. It further confirms
+that the performance degradation in these sparse
+scenarios is a byproduct of the skewed dataset
+composition rather than algorithmic failure. In
+contrast, the robust sample sizes in the dense
+ALDH1L1 03557 cohort (138 dense instances and
+240 crowded pairs) provide highly confident sta-
+tistical validation of our model’s robust instance
+separation capabilities.
+Overall detection COCO metrics
+While standard object detection metrics often use
+bounding box size as a proxy for detection diffi-
+culty, we argue in the main text that morphologi-
+cal contrast and local density are more biologically
+relevant attributes for astrocyte quantification.
+19
+Table S2: Computational efficiency comparison. Inference metrics including mean latency, through-
+put (Frames Per Second, FPS), and peak GPU memory consumption measured with a batch size of 4.
+Model
+Batch Size
+Mean Latency (ms)
+Throughput (FPS)
+Peak Memory (MB)
+Ours
+4
+150.97
+26.49
+1389.29
+Faster R-CNN
+4
+106.94
+37.40
+667.57
+Deformable DETR
+4
+191.43
+20.90
+1502.82
+YOLOv11
+4
+13.28
+301.15
+118.11
+Table S3: Comparison with the originally published baseline. Average Precision (AP) and Aver-
+age Recall (AR) comparing the proposed model against the aggregate metrics originally reported by Olar
+et al. [34].
+Test Cohort (Stain)
+Published Baseline (Olar et al.)
+Ours
+AP@[0.05:0.50]
+AR@[0.05:0.50]
+AP@[0.05:0.50]
+AR@[0.05:0.50]
+05019 Cohort 1 (ALDH1L1)
+0.737
+0.853
+0.777
+0.904
+05019 Cohort 1 (GFAP)
+0.312
+0.694
+0.323
+0.730
+05019 Cohort 2 (ALDH1L1)
+0.830
+0.886
+0.868
+0.951
+05019 Cohort 2 (GFAP)
+0.792
+0.928
+0.819
+0.936
+03557 (ALDH1L1)
+0.540
+0.648
+0.646
+0.852
+03557 (GFAP)
+0.697
+0.934
+0.765
+0.945
+Table S4: Sample size distribution for stratified evaluation. The table reports the absolute count
+of total ground-truth instances, low-contrast instances (bottom tertile of Cj), dense instances (Dj ≥2),
+and the number of highly crowded pairs (∥cj −ck∥2 ≤τ, with τ set to 30 pixels) evaluated for Pair-
+Separation Recall (PSR) across all test cohorts.
+Test Cohort (Stain)
+Total Instances
+Low-Contrast
+Dense (Dj ≥2)
+Crowded Pairs
+05019 Cohort 1 (ALDH1L1)
+1,954
+651
+16
+48
+05019 Cohort 1 (GFAP)
+803
+268
+8
+25
+05019 Cohort 2 (ALDH1L1)
+1,332
+444
+39
+77
+05019 Cohort 2 (GFAP)
+890
+297
+7
+57
+03557 (ALDH1L1)
+2,263
+754
+138
+240
+03557 (GFAP)
+972
+324
+16
+32
+Nevertheless, to provide a complete and stan-
+dard evaluation profile, we report the scale-specific
+COCO metrics in Table S5. Following the COCO
+evaluation protocol, instances are categorized into
+Small and Medium scales based on their area.
+The results demonstrate that our heatmap-seeded
+hybrid architecture effectively maintains candi-
+date sufficiency across varying astrocyte sizes.
+Specifically, in the ALDH1L1 05019 Cohort 2,
+the model achieved an APSmall of 0.865 and an
+APMedium of 0.918. The consistently high ARSmall
+across all subsets further validates that the initial
+spatial priors successfully capture even the small-
+est astrocytic somata without relying on dense,
+exhaustive anchor sampling.
+Furthermore,
+we
+focused
+our
+comparative
+analysis in the main text on highly challenging
+scenarios to specifically address the morpholog-
+ical heterogeneity of astrocytes. For complete-
+ness, Table S6 presents the comprehensive overall
+detection performance of our proposed method
+against all established baseline models, includ-
+ing YOLOv11, Deformable DETR, and Faster
+R-CNN.
+20
+Our architecture yields the highest overall
+Average Precision (AP) in five out of the six inde-
+pendent test cohorts spanning both ALDH1L1
+and GFAP stains. The substantial performance
+gap between our method and the Deformable
+DETR explicitly confirms the architectural advan-
+tage of replacing content-agnostic learned queries
+with
+our
+heatmap-seeded
+spatial
+queries
+for
+histopathological targets. Moreover, the proposed
+model maintains strict superiority over YOLOv11
+across all datasets and outperforms the fully opti-
+mized Faster R-CNN in all but one specific subset
+(GFAP 05019 Cohort 1). Even in this single
+exception, our method achieves highly comparable
+overall localization accuracy (AP 0.323 vs. 0.326)
+while maintaining its distinct advantage in resolv-
+ing densely overlapping instances as demonstrated
+in the main text.
+Detailed Failure Mode Analysis
+While our heatmap-guided architecture demon-
+strates significant improvements in candidate suf-
+ficiency and dense separation, it is not completely
+immune to errors when faced with extreme histo-
+logical artifacts or severe biological irregularities.
+To ensure a transparent evaluation of the model’s
+limitations, we provide a qualitative analysis of
+representative failure modes in Figure S1. The pri-
+mary sources of error manifest in three distinct
+phenomena. First, boundary truncation frequently
+leads to false negatives. Astrocytes located pre-
+cisely on the edge of the image patch are often
+severely truncated (Figure S1a, blue arrows). This
+loss of vital morphological context and the dis-
+ruption of the central soma structure prevent the
+CNN backbone from generating a confident spatial
+peak in the heatmap, leading to missed detections.
+Second, although our model excels at separat-
+ing typical dense clusters, extremely faint somata
+that are tightly entangled with adjacent, strongly
+stained cells can still occasionally confound the
+matching process (Figure S1b, yellow arrows). In
+such extreme cases, the model may either erro-
+neously merge a faint cell with its neighbor or
+artificially split a highly irregular, fragmented
+soma into two bounding boxes. Finally, immuno-
+histochemical processing can sometimes produce
+non-specific DAB chromogen pooling or tissue
+folding artifacts. When these artifacts exhibit
+structural and intensity profiles that closely mimic
+true astrocytic somata, the model may incor-
+rectly assign them high confidence scores, result-
+ing in false positives (Figure S1b, orange arrows).
+Addressing these edge cases—potentially through
+the integration of broader contextual windows
+to resolve boundary truncations or advanced
+artifact-rejection modules—represents a valuable
+direction for future refinement.
+21
+Table S5: COCO AP and AR (IoU 0.05-0.50) maxDets=100
+Cohort
+Stain
+AP All
+AP Small
+AP Med
+AR All
+AR Small
+AR Med
+05019 C1
+ALDH1L1
+0.777
+0.776
+0.862
+0.904
+0.906
+0.871
+05019 C1
+GFAP
+0.323
+0.230
+0.559
+0.733
+0.870
+0.583
+05019 C2
+ALDH1L1
+0.868
+0.865
+0.918
+0.951
+0.957
+0.920
+05019 C2
+GFAP
+0.819
+0.818
+0.979
+0.936
+0.936
+0.988
+03557
+ALDH1L1
+0.646
+0.610
+0.885
+0.878
+0.869
+0.950
+03557
+GFAP
+0.765
+0.719
+0.903
+0.945
+0.946
+0.946
+Macro average
+0.699
+0.669
+0.851
+0.891
+0.914
+0.876
+Table S6: Different Model COCO AP and AR (IoU 0.05-0.50) maxDets=100
+Cohort
+Stain
+Ours
+YOLOv11
+Deformable DETR
+Faster R-CNN
+AP
+AR
+AP
+AR
+AP
+AR
+AP
+AR
+05019 C1
+ALDH1L1
+0.777
+0.904
+0.751
+0.901
+0.737
+0.862
+0.730
+0.869
+05019 C2
+ALDH1L1
+0.868
+0.951
+0.844
+0.953
+0.857
+0.967
+0.833
+0.922
+03557
+ALDH1L1
+0.646
+0.878
+0.434
+0.843
+0.586
+0.832
+0.544
+0.727
+05019 C1
+GFAP
+0.323
+0.733
+0.243
+0.833
+0.258
+0.796
+0.326
+0.844
+05019 C2
+GFAP
+0.819
+0.936
+0.618
+0.932
+0.601
+0.985
+0.794
+0.931
+03557
+GFAP
+0.765
+0.945
+0.606
+0.941
+0.430
+0.943
+0.759
+0.931
+Fig. S1: Representative failure modes of the proposed model in complex histological land-
+scapes. Ground-truth annotations are marked by green boxes, and model predictions are indicated by
+red boxes. (a) Blue arrows highlight false negatives caused by severe cell truncation at the patch bound-
+aries, where the lack of morphological context prevents confident heatmap peak generation. (b) Yellow
+arrows point to rare split/merge errors occurring in extremely tight clusters involving highly irregular or
+weakly stained somata. Orange arrows indicate false positives triggered by non-specific DAB background
+staining or tissue artifacts that structurally mimic faint cell bodies.
+22

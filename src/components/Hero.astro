@@ -1,0 +1,204 @@
+---
+const { overline, titlePrefix, titleHighlight, authors, subtitle, pdfUrl } =
+  Astro.props;
+---
+
+<section class="hero">
+  <div class="hero-overline">{overline}</div>
+  <h1
+    class="hero-title"
+    set:html={titlePrefix + `<span class="highlight">${titleHighlight}</span>`}
+  />
+  <div class="hero-authors">{authors}</div>
+  <p class="hero-sub">{subtitle}</p>
+  <div class="hero-ctas">
+    {
+      pdfUrl && (
+        <a
+          class="hero-cta primary"
+          href={pdfUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <i
+            class="ph ph-file-pdf"
+            style="font-size: 1.3rem; margin-right: 8px;"
+          />
+          Read Full Manuscript
+        </a>
+      )
+    }
+  </div>
+  <a href="#abstract" class="scroll-arrow"
+    ><small>Discover</small><i></i><span></span></a
+  >
+</section>
+
+<style>
+  /* Hero Styles */
+  .hero {
+    min-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 100px 24px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -25%;
+    width: 150%;
+    height: 150%;
+    background: radial-gradient(
+      circle at 50% 30%,
+      rgba(15, 118, 110, 0.08) 0%,
+      transparent 60%
+    );
+    pointer-events: none;
+  }
+  .hero-overline {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    margin-bottom: 24px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.2s forwards;
+  }
+  .hero-title {
+    font-size: clamp(2.8rem, 6.5vw, 4.5rem);
+    line-height: 1.1;
+    margin-bottom: 24px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.4s forwards;
+  }
+  :global(.hero-title .highlight) {
+    color: var(--accent);
+  }
+  .hero-authors {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: var(--muted);
+    font-weight: 500;
+    margin-bottom: 20px;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.5s forwards;
+  }
+  .hero-sub {
+    font-size: clamp(1rem, 1.2vw, 1.15rem);
+    color: var(--muted);
+    max-width: 60ch;
+    margin-bottom: 32px;
+    line-height: 1.7;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.6s forwards;
+  }
+  .hero-ctas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    opacity: 0;
+    margin-bottom: 40px;
+    animation: fadeUp 0.8s 0.8s forwards;
+  }
+  .hero-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 28px;
+    border-radius: 999px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-decoration: none;
+    transition: all 0.3s;
+    color: var(--accent);
+    background: #ffffff;
+  }
+  .hero-cta.primary {
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid var(--accent);
+    box-shadow: 0 4px 14px rgba(15, 118, 110, 0.15);
+    color: var(--accent);
+  }
+  .hero-cta.primary:hover {
+    background: var(--accent);
+    color: #ffffff !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(15, 118, 110, 0.3);
+    text-decoration: none;
+  }
+  .hero-cta.primary:hover i {
+    color: #ffffff !important;
+  }
+  .scroll-arrow {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    animation: fadeUp 0.8s 1.2s forwards;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .scroll-arrow small {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-weight: 600;
+    opacity: 0.8;
+  }
+  .scroll-arrow i {
+    display: block;
+    width: 1.5px;
+    height: 12px;
+    background: var(--muted);
+    opacity: 0.5;
+  }
+  .scroll-arrow span {
+    display: block;
+    width: 12px;
+    height: 12px;
+    border-right: 2px solid var(--muted);
+    border-bottom: 2px solid var(--muted);
+    transform: rotate(45deg);
+    animation: bounce 2s infinite;
+  }
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes bounce {
+    0%,
+    100% {
+      transform: rotate(45deg) translateY(0);
+    }
+    50% {
+      transform: rotate(45deg) translateY(6px);
+    }
+  }
+  @media (max-width: 900px) {
+    .hero {
+      padding-top: 120px;
+    }
+  }
+</style>

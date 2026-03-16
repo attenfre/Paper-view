@@ -1,0 +1,101 @@
+---
+interface Card {
+  title: string;
+  text: string;
+}
+
+interface Figure {
+  url: string;
+  alt?: string;
+  caption?: string;
+}
+
+export interface Props {
+  id?: string;
+  background?: string;
+  label?: string;
+  title?: string;
+  subtitle?: string;
+  contentHtml?: string;
+  cards?: Card[];
+  figure?: Figure;
+  isReverse?: boolean;
+}
+
+const { id, background, label, title, subtitle, contentHtml, cards, figure, isReverse } = Astro.props;
+---
+<section id={id} class="sec" style={`background: ${background};`}>
+  <div class="wrap reveal">
+    {label && <div class="sec-label">{label}</div>}
+    {title && <h2 class="sec-title">{title}</h2>}
+    {subtitle && <p class="sec-sub">{subtitle}</p>}
+    
+    <div class={`grid-content mt36 ${isReverse ? 'reverse' : ''} ${!figure && (!cards || cards.length === 0) ? 'single-col' : ''}`}>
+      {/* Content Block */}
+      {contentHtml && (
+         <div class="content-block" set:html={contentHtml}></div>
+      )}
+
+      {/* Figures */}
+      {figure && (
+        <div class="fig-wrap">
+          <img src={figure.url} alt={figure.alt} loading="lazy" />
+          {figure.caption && <div class="fig-cap" set:html={figure.caption}></div>}
+        </div>
+      )}
+
+      {/* Cards */}
+      {cards && cards.length > 0 && (
+        <div class="highlight-cards">
+          {cards.map(card => (
+            <div class="h-card">
+              <h4>{card.title}</h4>
+              <p>{card.text}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  </div>
+</section>
+
+<style>
+/* Section Styles */
+.sec { padding: clamp(70px, 9vw, 110px) 0; }
+.sec-label { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; color: var(--accent); margin-bottom: 12px; }
+.sec-title { font-size: clamp(1.8rem, 3.5vw, 2.6rem); margin-bottom: 14px; }
+.sec-sub { color: var(--muted); font-size: clamp(1rem, 1.1vw, 1.15rem); max-width: 65ch; line-height: 1.7; }
+
+/* Grid Layouts */
+.mt36 { margin-top: 36px; }
+.grid-content { display: grid; grid-template-columns: 1fr 1.2fr; gap: clamp(24px, 4vw, 48px); align-items: center; }
+.grid-content.reverse { grid-template-columns: 1.2fr 1fr; }
+.grid-content.single-col { grid-template-columns: 1fr; }
+
+/* Block Content */
+:global(.content-block p) { margin-bottom: 16px; font-size: 1.05rem; color: var(--muted); line-height: 1.75; }
+:global(ul.abstract-list) { list-style: none; margin-top: 24px; }
+:global(ul.abstract-list li) { margin-bottom: 16px; padding-left: 24px; position: relative; font-size: 1.05rem; color: var(--muted); line-height: 1.7; }
+:global(ul.abstract-list li::before) { content: '→'; position: absolute; left: 0; top: 0; color: var(--accent); font-weight: 600; }
+
+/* Figure */
+.fig-wrap { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: var(--card); box-shadow: 0 8px 30px rgba(0,0,0,0.04); transition: transform 0.3s; }
+.fig-wrap:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.08); }
+.fig-wrap img { width: 100%; display: block; border-radius: var(--radius) var(--radius) 0 0; }
+.fig-cap { padding: 16px 20px; font-size: 0.9rem; color: var(--muted); border-top: 1px solid var(--border); background: #fafafa; line-height: 1.6; }
+:global(.fig-cap strong) { color: var(--text); font-weight: 600; }
+
+/* Cards */
+.highlight-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; }
+.h-card { background: var(--card); border: 1px solid var(--border); border-top: 4px solid var(--accent); border-radius: var(--radius); padding: 32px 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
+.h-card h4 { font-size: 1.25rem; margin-bottom: 12px; color: var(--text); }
+.h-card p { font-size: 0.95rem; color: var(--muted); line-height: 1.6; }
+
+/* Animations */
+.reveal { opacity: 0; transform: translateY(30px); transition: opacity 0.8s ease, transform 0.8s ease; }
+:global(.reveal.visible) { opacity: 1; transform: translateY(0); }
+
+@media (max-width: 900px) {
+    .grid-content, .grid-content.reverse { grid-template-columns: 1fr; }
+}
+</style>

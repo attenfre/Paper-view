@@ -1,17 +1,146 @@
 ---
-
+// Import all paper JSON files
+const paperFiles = import.meta.glob("../data/papers/*.json", { eager: true });
+const papers = Object.keys(paperFiles).map((file) => {
+  const id = file.split("/").pop()!.replace(".json", "");
+  const data = paperFiles[file] as any;
+  return { id, ...data };
+});
 ---
 
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paper Repository Library</title>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style is:inline>
+      @import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap");
+      :root {
+        --bg: #f5fbff;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #334155;
+        --border: #cbd5e1;
+        --radius: 12px;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: "IBM Plex Sans", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        padding: 60px 24px;
+      }
+      .wrap {
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+
+      h1 {
+        font-family: "DM Serif Display", serif;
+        font-size: 3rem;
+        margin-bottom: 12px;
+        text-align: center;
+      }
+      .subtitle {
+        text-align: center;
+        color: var(--muted);
+        margin-bottom: 60px;
+        font-size: 1.1rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 24px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 32px 24px;
+        display: flex;
+        flex-direction: column;
+        transition: all 0.3s;
+        text-decoration: none;
+        color: inherit;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
+      }
+      .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.06);
+        border-color: #cbd5e1;
+      }
+
+      .card-title {
+        font-family: "DM Serif Display", serif;
+        font-size: 1.5rem;
+        line-height: 1.2;
+        margin-bottom: 12px;
+      }
+      .card-authors {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #0f766e;
+        margin-bottom: 16px;
+      }
+      .card-desc {
+        font-size: 0.95rem;
+        color: var(--muted);
+        line-height: 1.6;
+        flex-grow: 1;
+        margin-bottom: 24px;
+      }
+
+      .card-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 0;
+        border-top: 1px solid var(--border);
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #0f766e;
+        transition: color 0.2s;
+      }
+      .card:hover .card-action {
+        color: #0d645e;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Paper Repository</h1>
+      <p class="subtitle">
+        Select a research paper below to view its interactive presentation.
+      </p>
+
+      <div class="grid">
+        {
+          papers.map((paper) => (
+            <a href={`/paper/${paper.id}`} class="card">
+              <div class="card-authors">
+                <i class="ph ph-users" /> {paper.hero.authors}
+              </div>
+              <h2
+                class="card-title"
+                set:html={paper.hero.titlePrefix + paper.hero.titleHighlight}
+              />
+              <p class="card-desc">{paper.metaData.description}</p>
+              <div class="card-action">
+                Read Paper{" "}
+                <i class="ph ph-arrow-right" style="margin-left:6px;" />
+              </div>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </body>
 </html>

@@ -1,0 +1,140 @@
+{
+  "metaData": {
+    "title": "Astrocyte Soma Detection — Paper Website",
+    "description": "Paper website for the manuscript: Heatmap-Seeded Spatially Grounded Query Transformers Improve Astrocyte Soma Detection across Immunostains and Scan Resolutions",
+    "themeColor": "#0f766e"
+  },
+  "nav": {
+    "brand": {
+      "initials": "JZ",
+      "name": "Jiayang Zhu & Xizhe Zhang"
+    },
+    "links": [
+      { "label": "Abstract", "href": "#abstract" },
+      { "label": "Background", "href": "#background" },
+      { "label": "Methods", "href": "#methods" },
+      { "label": "Results", "href": "#results" },
+      { "label": "Discussion", "href": "#discussion" }
+    ]
+  },
+  "hero": {
+    "overline": "Research Paper Visualization",
+    "titlePrefix": "Heatmap-Seeded <br/>",
+    "titleHighlight": "Query Transformers",
+    "authors": "Jiayang Zhu and Xizhe Zhang",
+    "subtitle": "Improving Astrocyte Soma Detection across Immunostains and Scan Resolutions by coupling candidate sufficiency with global competitive assignment.",
+    "pdfUrl": "/pdfs/sn-article.pdf"
+  },
+  "sections": [
+    {
+      "id": "abstract",
+      "background": "#fff",
+      "label": "Abstract",
+      "title": "Solving the Sensitivity-Precision Trade-off",
+      "subtitle": "",
+      "contentHtml": "<p>Automated astrocyte quantification in human immunohistochemistry (IHC) is hindered by stain variability and dense clustering. Standard Transformers often miss faint somata due to agnostic initialization, while CNNs struggle with overlapping instances.</p><ul class=\"abstract-list\"><li><strong>Methods:</strong> A Heatmap-Seeded Query Transformer coupling candidate sufficiency with global competitive assignment. Queries initialized from CNN-derived spatial peaks capture faint targets and are refined via a cross-scale Transformer decoder.</li><li><strong>Results:</strong> Improved overall Average Precision (AP) globally, including a nearly 19% relative increase in high-resolution ALDH1L1 images. Crucially, it localizes low-contrast targets and resolves densely crowded cell pairs.</li><li><strong>Conclusions:</strong> Integrating spatial priors with global reasoning effectively mitigates the sensitivity-precision trade-off, yielding a robust detector resilient to stain and resolution shifts.</li></ul>",
+      "cards": [],
+      "figure": null,
+      "isReverse": false
+    },
+    {
+      "id": "background",
+      "background": "transparent",
+      "label": "Background",
+      "title": "Challenges in Astrocyte Detection",
+      "subtitle": "Methodological barriers in translational research.",
+      "contentHtml": "<p>Astrocytes constitute a fundamental class of glial cells within the central nervous system, characterized by their complex stellate morphology and essential roles in supporting neuronal function, regulating cerebral blood flow, and modulating synaptic activity. In response to neurological insults, astrocytes undergo reactive gliosis. While evaluating fine morphological changes requires precise cell segmentation, accurate localization and robust enumeration serve as the fundamental first step.</p><p>Unlike controlled animal models with fluorescent reporters, clinical neuropathology relies heavily on immunohistochemistry (IHC) of human brain tissue. This data inherently suffers from significant challenges, including variable staining intensity, non-specific background noise from DAB chromogens, and a lack of channel separation.</p><p>Reliable identification is further confounded by two primary barriers: stain-dependent appearance shifts and dense cellular clustering.</p>",
+      "cards": [
+        {
+          "title": "CNN Limitations",
+          "text": "Traditional detectors like Faster R-CNN and YOLO rely on heuristic non-maximum suppression (NMS) to filter redundant anchors. In dense astrocytic networks where processes intertwine, heuristic NMS erroneously suppresses true positives or fails to separate overlapping somata."
+        },
+        {
+          "title": "Transformer Limitations",
+          "text": "Detection Transformers leverage global attention for one-to-one set matching, explicitly suppressing duplicates. However, content-agnostic learned queries fail to locate valid faint objects during initial training, a critical limitation known as the candidate sufficiency problem."
+        }
+      ],
+      "figure": null,
+      "isReverse": false
+    },
+    {
+      "id": "methods",
+      "background": "#fff",
+      "label": "Methods",
+      "title": "Architecture Details",
+      "subtitle": "Coupling spatial priors with global reasoning.",
+      "contentHtml": "<p>We propose a Heatmap-Seeded Spatially Grounded Query Transformer designed for robust astrocyte soma detection.</p><p>The detector processes input images through three integrated components. First, a ResNet-50 backbone fused via a Feature Pyramid Network extracts hierarchical features. Second, a projection head predicts a dense center heatmap, from which local maxima are extracted to serve as spatially grounded anchors. Third, a dynamic query decoder samples feature vectors at these anchor locations to initialize queries.</p><p>By seeding Transformer queries with high-confidence peaks derived from a computationally efficient CNN heatmap, we ensure that even faint somata are attended to, thereby solving the issue of candidate sufficiency. These queries are then refined through self-attention and cross-attention over a multi-scale memory, performing competitive assignment to distribute distinct predictions across crowded clusters natively.</p>",
+      "cards": [],
+      "figure": {
+        "url": "/figs/Fig1.webp",
+        "alt": "Architecture of the Heatmap-Seeded Query Transformer",
+        "caption": "<strong>Fig 1: Architecture of the Heatmap-Seeded Query Transformer.</strong> A ResNet backbone fused via FPN produces multi-scale maps. A projection head predicts a center heatmap anchoring spatially grounded anchors into a dynamic query decoder for iterative refinement."
+      },
+      "isReverse": false
+    },
+    {
+      "id": "methods-heatmap",
+      "background": "transparent",
+      "label": "Methods",
+      "title": "Candidate Sufficiency",
+      "subtitle": "Spatial guidance via continuous density mapping.",
+      "contentHtml": "<p>To resolve the initialization issue of standard Transformers, we employ a heatmap-guided strategy where peaks correspond to astrocyte centers. For each ground-truth soma, the target is modeled as a 2D Gaussian kernel with an adaptive radius.</p><p>By selecting the top-K local maxima from the predicted heatmap, this mechanism explicitly encodes the spatial confidence of potential targets into the Transformer. This dense supervision forces the model to learn local structural features of astrocytes early in the pipeline.</p>",
+      "cards": [],
+      "figure": {
+        "url": "/figs/Fig2.webp",
+        "alt": "Qualitative visualization of heatmap-seeded queries",
+        "caption": "<strong>Fig 2: Heatmap-Seeded Initialization.</strong> (Top) RGB patch and predicted heatmap. (Bottom) Heatmap overlaid generating spatial peaks, leading to final refined bounding box predictions bridging dense local crowding."
+      },
+      "isReverse": true
+    },
+    {
+      "id": "results",
+      "background": "#fff",
+      "label": "Results",
+      "title": "Quantitative Evaluation",
+      "subtitle": "Robustness across distinct immunolabeling.",
+      "contentHtml": "<p>The framework substantially improved overall Average Precision (AP) globally against Deformable DETR, YOLOv11, and Faster R-CNN across the vast majority of test cohorts.</p><p>Free-Response ROC (FROC) analysis confirmed superior sensitivity at clinically relevant low false-positive rates. The curves derived from bootstrap resampling (Figure 3) demonstrate that our model consistently achieves higher sensitivity at lower False Positive Per Image (FPPI) rates, particularly in the highly challenging ALDH1L1 datasets.</p><p>Furthermore, stratified evaluation on densely clustered somata confirmed that the Transformer’s self-attention successfully coordinates one-to-one assignment. By effectively modeling the relationships between overlapping queries, it natively resolves crowding without relying on heuristic thresholding.</p>",
+      "cards": [],
+      "figure": {
+        "url": "/figs/Fig3.webp",
+        "alt": "FROC Analysis across cohorts",
+        "caption": "<strong>Fig 3: Bootstrap FROC analysis.</strong> Our model (blue) consistently achieves higher sensitivity at lower False Positive Per Image (FPPI) rates across varying patients and staining conditions (ALDH1L1 and GFAP)."
+      },
+      "isReverse": false
+    },
+    {
+      "id": "results-qualitative",
+      "background": "transparent",
+      "label": "Results",
+      "title": "Solving Dense Crowds",
+      "subtitle": "Comparative performance against baselines.",
+      "contentHtml": "<p>Visual inspection directly corroborates the stratified quantitative metrics. As explicitly highlighted by the blue circles in Figure 4, baseline models struggle significantly in highly crowded local neighborhoods.</p><p>The Deformable DETR exhibits severe under-detection, underscoring the limitations of content-agnostic queries when targets are tightly packed. Similarly, YOLOv11 and Faster R-CNN fail to reliably separate adjacent instances, often erroneously merging them into single bounding boxes due to anchor entanglement.</p><p>In contrast, our hybrid model successfully isolates these densely overlapping cells, assigning distinct bounding boxes to each soma with precise one-to-one matching.</p>",
+      "cards": [],
+      "figure": {
+        "url": "/figs/Fig4.webp",
+        "alt": "Comparison with Baseline Detectors",
+        "caption": "<strong>Fig 4: Comparison vs Baselines.</strong> (a) Proposed Model (b) Deformable DETR (c) YOLOv11 (d) Faster R-CNN. Explicit spatial arrays resolve heavily dense intersections gracefully where NMS-based CNNs merge bounding boxes."
+      },
+      "isReverse": true
+    },
+    {
+      "id": "discussion",
+      "background": "#fff",
+      "label": "Discussion",
+      "title": "Conclusions & Limitations",
+      "subtitle": "Bridging structural reasoning with local texture.",
+      "contentHtml": "<p>Our Heatmap-Seeded Query Transformer bridges the gap between local textural sensitivity and global structural reasoning. By ensuring candidate sufficiency for low-contrast targets through heatmaps while deploying global competitive assignment for separation, it effectively mitigates the sensitivity-precision trade-off.</p><p>Despite significant improvements, the model is not completely immune to errors in highly complex histological landscapes. Extremely hypertrophic reactive astrocytes with highly fragmented DAB staining can occasionally disrupt initial heatmap generation, leading to under-detection. Furthermore, tissue folding artifacts and chromogen pooling can sometimes mimic astrocytic somata, resulting in false positives.</p>",
+      "cards": [],
+      "figure": {
+        "url": "/figs/Fig S1.webp",
+        "alt": "Supplementary limitation cases",
+        "caption": "<strong>Fig S1: Failure Cases.</strong> Visualization of false negatives due to disrupted peaks and false positives resulting from tissue preparation artifacts."
+      },
+      "isReverse": false
+    }
+  ],
+  "footer": {
+    "year": 2026,
+    "copyright": "Jiayang Zhu & Xizhe Zhang. All rights reserved."
+  }
+}

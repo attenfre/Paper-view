@@ -1,0 +1,68 @@
+{
+    "metaData": {
+        "title": "网页的标题 (显示在浏览器标签页)",
+        "description": "网页的 Meta 描述 (用于 SEO 和分享)",
+        "themeColor": "#0f766e"
+    },
+    "nav": {
+        "brand": {
+            "initials": "JZ",
+            "name": "作者姓名或机构名"
+        },
+        "links": [
+            {
+                "label": "Abstract",
+                "href": "#abstract"
+            },
+            {
+                "label": "Background",
+                "href": "#background"
+            }
+        ]
+    },
+    "hero": {
+        "overline": "页面最顶部的小字 (例如: Research Paper)",
+        "titlePrefix": "主标题的前半部分 <br/>",
+        "titleHighlight": "主标题需要高亮强调的部分",
+        "authors": "完整的作者列表",
+        "subtitle": "论文的一句话摘要或副标题",
+        "pdfUrl": "/pdfs/your-paper.pdf"
+    },
+    "sections": [
+        {
+            "id": "abstract",
+            "background": "#fff",
+            "label": "小标签 (例如: Abstract)",
+            "title": "区块大标题",
+            "subtitle": "区块副标题",
+            "contentHtml": "<p>这里填写正文内容，支持使用 <strong>加粗</strong>、<p>段落</p> 或 <ul><li>列表</li></ul> 等基本 HTML 标签。</p>",
+            "cards": [
+                {
+                    "title": "卡片标题 (没有可留空数组 [])",
+                    "text": "卡片内的文本描述"
+                }
+            ],
+            "figure": {
+                "url": "/figs/your-image.webp",
+                "alt": "图片替代文本",
+                "caption": "<strong>图1：</strong> 图表说明文字，也支持 HTML"
+            },
+            "isReverse": false
+        },
+        {
+            "id": "background",
+            "background": "transparent",
+            "label": "Background",
+            "title": "另一个独立段落...",
+            "subtitle": "...",
+            "contentHtml": "<p>这里是第二个段落的文字...</p>",
+            "cards": [],
+            "figure": null,
+            "isReverse": true
+        }
+    ],
+    "footer": {
+        "year": 2026,
+        "copyright": "版权所有者信息"
+    }
+}

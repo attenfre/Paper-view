@@ -1,0 +1,113 @@
+---
+import Nav from '../../components/Nav.astro';
+import Hero from '../../components/Hero.astro';
+import Section from '../../components/Section.astro';
+import Footer from '../../components/Footer.astro';
+
+export async function getStaticPaths() {
+  const paperFiles = import.meta.glob('../../data/papers/*.json', { eager: true });
+  
+  return Object.keys(paperFiles).map((file) => {
+    // Extract filename without extension for the dynamic id
+    const id = file.split('/').pop()!.replace('.json', '');
+    return {
+      params: { id },
+      props: { paperConfig: paperFiles[file] },
+    };
+  });
+}
+
+interface Props {
+  paperConfig: any;
+}
+
+const { paperConfig } = Astro.props;
+---
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{paperConfig.metaData.title}</title>
+  <meta name="description" content={paperConfig.metaData.description} />
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <style is:inline>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+    :root {
+      --bg: #f5fbff;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #334155;
+      --border: #cbd5e1;
+      --footer-bg: #f8fafc;
+      --radius: 12px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-weight: 400;
+      line-height: 1.75;
+      font-size: 17px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, h4 { font-family: 'DM Serif Display', serif; font-weight: 400; line-height: 1.25; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; display: block; border-radius: var(--radius); }
+    button { font-family: inherit; cursor: pointer; }
+
+    .wrap { width: min(1120px, calc(100vw - 48px)); margin: 0 auto; }
+  </style>
+</head>
+<body style={`--accent: ${paperConfig.metaData.themeColor};`}>
+
+  <!-- Render Navigation -->
+  <Nav brand={paperConfig.nav.brand} links={paperConfig.nav.links} />
+
+  <!-- Render Hero Section -->
+  <Hero 
+    overline={paperConfig.hero.overline}
+    titlePrefix={paperConfig.hero.titlePrefix}
+    titleHighlight={paperConfig.hero.titleHighlight}
+    authors={paperConfig.hero.authors}
+    subtitle={paperConfig.hero.subtitle}
+    pdfUrl={paperConfig.hero.pdfUrl}
+  />
+
+  <!-- Render Document Sections dynamically -->
+  {paperConfig.sections.map((section: any) => (
+    <Section 
+      id={section.id}
+      background={section.background}
+      label={section.label}
+      title={section.title}
+      subtitle={section.subtitle}
+      contentHtml={section.contentHtml}
+      cards={section.cards}
+      figure={section.figure}
+      isReverse={section.isReverse}
+    />
+  ))}
+
+  <!-- Render Footer -->
+  <Footer year={paperConfig.footer.year} copyright={paperConfig.footer.copyright} />
+
+  <script>
+    // Scroll reveal functionality for the Sections
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -50px 0px' });
+    
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+  </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+---
+const { year, copyright } = Astro.props;
+---
+<footer class="site-footer">
+  <div class="wrap">
+    <p>&copy; {year} {copyright}</p>
+  </div>
+</footer>
+
+<style>
+/* Footer */
+.site-footer { background: var(--footer-bg); padding: 60px 0; border-top: 1px solid var(--border); text-align: center; }
+.site-footer p { color: var(--muted); font-size: 0.9rem; }
+.wrap { width: min(1120px, calc(100vw - 48px)); margin: 0 auto; }
+</style>

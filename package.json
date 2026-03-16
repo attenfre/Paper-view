@@ -12,6 +12,7 @@
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^6.0.2"
+    "astro": "^6.0.2",
+    "pdf-parse": "^2.4.5"
   }
 }
